@@ -5,6 +5,8 @@
  *   1) 사진 업로드 문항의 설명(파일명 규칙 안내)을 4차 폼에서 복사
  *   2) 「아래 내용을 모두 확인했어요」 체크박스에 "사진 파일명을 바꿔서제출했어요" 항목 추가
  *   3) 그 체크박스를 필수 + "모든 항목 선택" 검증으로 설정 → 체크 안 하면 제출 불가
+ *   4) 「개인정보 수집 및 이용 동의」 문항에 LUCA 정보 공유 안내 문구 추가
+ *      (사진 제외 · 이번 회차만 공유)
  *
  * 사용법 (script.google.com → 새 프로젝트 → 이 코드 붙여넣기)
  *   ① preview() 실행 → 로그에서 두 폼의 현재 상태 확인 (아무것도 바꾸지 않음)
@@ -20,6 +22,14 @@ var RENAME_KEYWORD = '파일명';
 var FALLBACK_RENAME_CHOICE = '사진 파일명을 바꿔서제출했어요';
 // 4차와 같이 '모든 항목을 체크해야 제출'로 만들지 여부
 var REQUIRE_ALL_CHOICES = true;
+
+var PRIVACY_TITLE_KEYWORD = '개인정보';
+var LUCA_NOTICE_MARK = '[LUCA 정보 공유 안내]';
+var LUCA_NOTICE =
+  LUCA_NOTICE_MARK + '\n' +
+  '이번 크리스마스 파티(12.25)는 결맞소와 LUCA가 함께 진행해요.\n' +
+  '신청서에 작성해 주신 정보 중 사진을 제외한 정보는 이번 회차에 한해서만 LUCA 측과 공유돼요.\n' +
+  '사진은 LUCA 측에 공유되지 않아요.';
 
 function preview() {
   [SRC_FORM_ID, DST_FORM_ID].forEach(function (id) {
@@ -83,6 +93,34 @@ function apply() {
   }
   Logger.log((already ? '이미 있던' : '추가한') + ' 항목: ' + renameChoice);
   Logger.log('확인 체크박스 최종 항목(' + values.length + '개, 전부 필수):\n - ' + values.join('\n - '));
+
+  addLucaNotice_(dst);
+}
+
+/** 개인정보 동의 문항 설명 끝에 LUCA 공유 안내를 붙임. 문항이 없으면 그 자리에 안내 블록을 새로 만듦. 여러 번 실행해도 한 번만 들어감. */
+function addLucaNotice_(form) {
+  var target = null;
+  form.getItems().forEach(function (it) {
+    if (!target && it.getTitle().indexOf(PRIVACY_TITLE_KEYWORD) >= 0 &&
+        it.getType() !== FormApp.ItemType.SECTION_HEADER) target = it;
+  });
+  if (target) {
+    var help = target.getHelpText() || '';
+    if (help.indexOf(LUCA_NOTICE_MARK) >= 0) { Logger.log('LUCA 안내 문구는 이미 있습니다.'); return; }
+    target.setHelpText(help ? help + '\n\n' + LUCA_NOTICE : LUCA_NOTICE);
+    Logger.log('「' + target.getTitle() + '」 설명에 LUCA 안내 추가 완료');
+    return;
+  }
+  var exists = form.getItems(FormApp.ItemType.SECTION_HEADER).some(function (it) {
+    return it.getTitle().indexOf('LUCA') >= 0;
+  });
+  if (exists) { Logger.log('LUCA 안내 블록은 이미 있습니다.'); return; }
+  var header = form.addSectionHeaderItem()
+    .setTitle('LUCA 정보 공유 안내')
+    .setHelpText(LUCA_NOTICE.replace(LUCA_NOTICE_MARK + '\n', ''));
+  var confirm = findConfirm_(form);
+  if (confirm) form.moveItem(header.getIndex(), confirm.getIndex());
+  Logger.log('개인정보 동의 문항이 없어 안내 블록을 새로 추가했습니다.');
 }
 
 function findFirst_(form, type) {
